@@ -273,15 +273,28 @@ module.exports.createSchemaApiKeySchema = z.object({
   fields: z.array(buildApiFieldSchemaZod(1)).optional(),
 });
 
-module.exports.sanitize = (obj) => {
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const isDangerousKey = (key) => key.startsWith('$') || BLOCKED_KEYS.has(key);
+
+const sanitizeValue = (value) => {
+  if (Array.isArray(value)) return value.map(sanitizeValue);
+  if (value !== null && typeof value === 'object') return sanitize(value);
+  return value;
+};
+
+const sanitize = (obj) => {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return obj;
   const clean = {};
-  for (const key in obj) {
-    if (!key.startsWith("$")) {
-      clean[key] = obj[key];
+  for (const key of Object.keys(obj)) {
+    if (!isDangerousKey(key)) {
+      clean[key] = sanitizeValue(obj[key]);
     }
   }
   return clean;
 };
+
+module.exports.sanitize = sanitize;
 
 const emptyToUndefined = z.preprocess(
   (val) => (val === "" || val === null ? undefined : val),
